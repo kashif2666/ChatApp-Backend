@@ -7,6 +7,7 @@ require("./db/connection");
 
 //import files
 const Users = require("./models/Users");
+const Conversation = require("./models/Conversations");
 
 //app use
 const app = express();
@@ -78,15 +79,50 @@ app.post("/api/login", async (req, res, next) => {
               next();
             }
           );
-          res
-            .status(200)
-            .json({
-              user: { email: user.email, fullName: user.fullName },
-              token: user.token,
-            });
+          res.status(200).json({
+            user: { email: user.email, fullName: user.fullName },
+            token: user.token,
+          });
         }
       }
     }
+  } catch (error) {
+    console.log("Error", error);
+  }
+});
+
+app.post("/api/conversation", async (req, res) => {
+  try {
+    const { senderId, receiverId } = req.body;
+    const newConversation = new Conversation({
+      members: [senderId, receiverId],
+    });
+    await newConversation.save();
+    res.status(200).send("Conversation created successfully");
+  } catch (error) {
+    console.log("Error", error);
+  }
+});
+
+app.get("/api/conversation/:userId", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const conversations = await Conversation.find({
+      members: { $in: [userId] },
+    });
+    const conversationUserData = Promise.all(
+      conversations.map(async (conversation) => {
+        const receiverId = conversation.members.find(
+          (member) => member !== userId
+        );
+        const user = await Users.findById(receiverId);
+        return {
+          user: { email: user.email, fullName: user.fullName },
+          conversationId: conversation._id,
+        };
+      })
+    );
+    res.status(200).json(await conversationUserData);
   } catch (error) {
     console.log("Error", error);
   }
